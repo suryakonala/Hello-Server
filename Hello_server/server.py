@@ -5,6 +5,7 @@ import os
 
 PORT = int(os.environ.get("PORT", 8000))
 
+# ===== Database Setup =====
 db = sqlite3.connect("data.db", check_same_thread=False)
 cursor = db.cursor()
 
@@ -27,20 +28,54 @@ CREATE TABLE IF NOT EXISTS records (
 
 db.commit()
 
+# ====== Server Handler ======
 class MyHandler(BaseHTTPRequestHandler):
 
     def send_json(self, data):
         self.send_response(200)
         self.send_header("Content-type", "application/json")
+        self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
         self.wfile.write(json.dumps(data).encode())
 
+    # ===== GET Requests =====
+    def do_GET(self):
+
+        # ROOT → serve index.html
+        if self.path == "/":
+            try:
+                with open("index.html", "r", encoding="utf-8") as f:
+                    html = f.read()
+
+                self.send_response(200)
+                self.send_header("Content-type", "text/html")
+                self.end_headers()
+                self.wfile.write(html.encode())
+
+            except Exception as e:
+                self.send_response(500)
+                self.end_headers()
+                self.wfile.write(f"index.html error: {str(e)}".encode())
+
+        # View all users
+        elif self.path == "/users":
+            cursor.execute("SELECT id, username FROM users")
+            rows = cursor.fetchall()
+            self.send_json(rows)
+
+        # View all saved messages
+        elif self.path == "/data":
+            cursor.execute("SELECT * FROM records")
+            rows = cursor.fetchall()
+            self.send_json(rows)
+
+    # ===== POST Requests =====
     def do_POST(self):
         content_length = int(self.headers["Content-Length"])
         body = self.rfile.read(content_length)
         data = json.loads(body)
 
-        # ✅ REGISTER API
+        # Register user
         if self.path == "/register":
             username = data.get("username")
             password = data.get("password")
@@ -55,7 +90,7 @@ class MyHandler(BaseHTTPRequestHandler):
             except:
                 self.send_json({"status": "Username already exists"})
 
-        # ✅ LOGIN API
+        # Login user
         elif self.path == "/login":
             username = data.get("username")
             password = data.get("password")
@@ -71,33 +106,16 @@ class MyHandler(BaseHTTPRequestHandler):
             else:
                 self.send_json({"status": "Invalid username or password"})
 
-        # ✅ SAVE MESSAGE API (OLD FEATURE)
+        # Save message
         elif self.path == "/save":
-            name = data.get("name")
-            email = data.get("email")
-            message = data.get("message")
-
             cursor.execute(
                 "INSERT INTO records (name, email, message) VALUES (?, ?, ?)",
-                (name, email, message)
+                (data["name"], data["email"], data["message"])
             )
             db.commit()
-
             self.send_json({"status": "Data saved"})
 
-    def do_GET(self):
-        # ✅ VIEW ALL USERS
-        if self.path == "/users":
-            cursor.execute("SELECT id, username FROM users")
-            users = cursor.fetchall()
-            self.send_json(users)
-
-        # ✅ VIEW ALL SAVED MESSAGES
-        elif self.path == "/data":
-            cursor.execute("SELECT * FROM records")
-            rows = cursor.fetchall()
-            self.send_json(rows)
-
+# ===== Start Server =====
 server = HTTPServer(("", PORT), MyHandler)
-print("Login + Data Server Running...")
+print("Login + Data API Server Running...")
 server.serve_forever()
