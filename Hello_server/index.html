@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Hello Server</title>
+    <title>Hello Server Control Panel</title>
     <style>
         body {
             margin: 0;
@@ -16,27 +16,53 @@
 
         .box {
             text-align: center;
-            border: 2px solid white;
-            padding: 30px 60px;
-            border-radius: 10px;
-            box-shadow: 0 0 20px white;
+            border: 2px solid #0ff;
+            padding: 40px 80px;
+            border-radius: 12px;
+            box-shadow: 0 0 20px #0ff;
         }
 
         h1 {
             font-size: 40px;
             margin-bottom: 10px;
+            color: #0ff;
         }
 
         p {
             font-size: 18px;
             color: #cccccc;
         }
+
+        .btn {
+            display: block;
+            margin: 15px auto;
+            padding: 12px 30px;
+            font-size: 18px;
+            background: black;
+            border: 2px solid #0ff;
+            color: #0ff;
+            border-radius: 8px;
+            cursor: pointer;
+            text-decoration: none;
+            width: 260px;
+        }
+
+        .btn:hover {
+            background: #0ff;
+            color: black;
+        }
     </style>
 </head>
 <body>
     <div class="box">
         <h1>Hello Server</h1>
-        <p>Hello server is running successfully</p>
+        <p>Backend Control Panel</p>
+
+        <a class="btn" href="/register"> Open Register Page</a>
+        <a class="btn" href="/login"> Open Login Page</a>
+        <a class="btn" href="/admin?key=mysecret123"> Open Admin Panel</a>
+
+        <p style="margin-top:20px;color:#888;">Hello Server is running successfully</p>
     </div>
 </body>
 </html>
