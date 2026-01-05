@@ -49,20 +49,24 @@
 
 <div class="box">
     <h2>Register</h2>
+
     <input type="text" id="username" placeholder="Username">
     <input type="password" id="password" placeholder="Password">
+
     <button onclick="registerUser()">Register</button>
+
     <p id="msg"></p>
+
     <a href="/login">Already have an account? Login</a>
 </div>
 
+<!-- ✅ JAVASCRIPT GOES HERE -->
 <script>
 function registerUser() {
-    fetch("/register", {
+    fetch("/register-api", {
         method: "POST",
         headers: {
-            "Content-Type": "application/json",
-            "X-API-KEY": "mysecret123"
+            "Content-Type": "application/json"
         },
         body: JSON.stringify({
             username: document.getElementById("username").value,

@@ -1,42 +1,34 @@
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import json
-import sqlite3
 import os
 import hashlib
+from pymongo import MongoClient
 
+# ================= CONFIG =================
 PORT = int(os.environ.get("PORT", 8000))
 
-# 🔐 YOUR ADMIN PASSWORD (CHANGE THIS!)
-ADMIN_PASSWORD = "admin123"
+# Admin password (use ENV in Render, fallback for local)
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "Surya@135")
 
-# ===== Database =====
-db = sqlite3.connect("data.db", check_same_thread=False)
-cursor = db.cursor()
+# MongoDB connection (comes from Render ENV)
+MONGO_URL = os.environ.get("MONGO_URL")
 
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    username TEXT UNIQUE,
-    password TEXT
-)
-""")
+# ================= MONGODB =================
+client = MongoClient(MONGO_URL)
+mongo_db = client["helloserver"]
 
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS records (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT,
-    email TEXT,
-    message TEXT
-)
-""")
+users_col = mongo_db["users"]
+records_col = mongo_db["records"]
 
-db.commit()
+print("✅ MongoDB Connected")
 
-# ===== Session (admin login) =====
+# ================= ADMIN SESSION =================
 ADMIN_SESSION = False
+
 
 class MyHandler(BaseHTTPRequestHandler):
 
+    # ---------- helpers ----------
     def send_json(self, data, code=200):
         self.send_response(code)
         self.send_header("Content-type", "application/json")
@@ -51,11 +43,12 @@ class MyHandler(BaseHTTPRequestHandler):
             self.send_header("Content-type", "text/html")
             self.end_headers()
             self.wfile.write(html.encode())
-        except:
+        except Exception:
             self.send_response(404)
             self.end_headers()
             self.wfile.write(b"Page not found")
 
+    # ---------- GET ----------
     def do_GET(self):
         global ADMIN_SESSION
 
@@ -78,11 +71,8 @@ class MyHandler(BaseHTTPRequestHandler):
                 self.wfile.write(b"Forbidden: Admin not logged in")
                 return
 
-            cursor.execute("SELECT id, username FROM users")
-            users = cursor.fetchall()
-
-            cursor.execute("SELECT * FROM records")
-            records = cursor.fetchall()
+            users = users_col.find({}, {"password": 0})
+            records = records_col.find({})
 
             html = """
             <html>
@@ -97,17 +87,25 @@ class MyHandler(BaseHTTPRequestHandler):
             </head>
             <body>
             <h1>Admin Panel</h1>
+
             <h2>Users</h2>
-            <table><tr><th>ID</th><th>Username</th></tr>
+            <table>
+            <tr><th>ID</th><th>Username</th></tr>
             """
 
             for u in users:
-                html += f"<tr><td>{u[0]}</td><td>{u[1]}</td></tr>"
+                html += f"<tr><td>{u['_id']}</td><td>{u['username']}</td></tr>"
 
-            html += "</table><h2>Messages</h2><table><tr><th>ID</th><th>Name</th><th>Email</th><th>Message</th></tr>"
+            html += """
+            </table>
+
+            <h2>Messages</h2>
+            <table>
+            <tr><th>ID</th><th>Name</th><th>Email</th><th>Message</th></tr>
+            """
 
             for r in records:
-                html += f"<tr><td>{r[0]}</td><td>{r[1]}</td><td>{r[2]}</td><td>{r[3]}</td></tr>"
+                html += f"<tr><td>{r['_id']}</td><td>{r.get('name','')}</td><td>{r.get('email','')}</td><td>{r.get('message','')}</td></tr>"
 
             html += "</table></body></html>"
 
@@ -121,12 +119,13 @@ class MyHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(b"Not Found")
 
+    # ---------- POST ----------
     def do_POST(self):
         global ADMIN_SESSION
 
         length = int(self.headers.get("Content-Length", 0))
         body = self.rfile.read(length)
-        data = json.loads(body)
+        data = json.loads(body or b"{}")
 
         # ✅ ADMIN LOGIN
         if self.path == "/admin-login":
@@ -138,40 +137,57 @@ class MyHandler(BaseHTTPRequestHandler):
 
         # ✅ USER REGISTER
         elif self.path == "/register-api":
-            username = data["username"]
-            password = hashlib.sha256(data["password"].encode()).hexdigest()
+            username = data.get("username", "").strip()
+            password = data.get("password", "")
 
-            try:
-                cursor.execute("INSERT INTO users (username,password) VALUES (?,?)", (username, password))
-                db.commit()
-                self.send_json({"status": "Registered"})
-            except:
+            if not username or not password:
+                self.send_json({"status": "Missing fields"}, 400)
+                return
+
+            hashed = hashlib.sha256(password.encode()).hexdigest()
+
+            if users_col.find_one({"username": username}):
                 self.send_json({"status": "User exists"}, 409)
+                return
+
+            users_col.insert_one({
+                "username": username,
+                "password": hashed
+            })
+
+            self.send_json({"status": "Registered"})
 
         # ✅ USER LOGIN
         elif self.path == "/login-api":
-            username = data["username"]
-            password = hashlib.sha256(data["password"].encode()).hexdigest()
+            username = data.get("username", "").strip()
+            password = data.get("password", "")
 
-            cursor.execute("SELECT * FROM users WHERE username=? AND password=?", (username, password))
-            if cursor.fetchone():
+            hashed = hashlib.sha256(password.encode()).hexdigest()
+
+            user = users_col.find_one({
+                "username": username,
+                "password": hashed
+            })
+
+            if user:
                 self.send_json({"status": "Login success"})
             else:
                 self.send_json({"status": "Invalid"}, 401)
 
         # ✅ SAVE MESSAGE
         elif self.path == "/save":
-            cursor.execute(
-                "INSERT INTO records (name,email,message) VALUES (?,?,?)",
-                (data["name"], data["email"], data["message"])
-            )
-            db.commit()
+            records_col.insert_one({
+                "name": data.get("name"),
+                "email": data.get("email"),
+                "message": data.get("message")
+            })
             self.send_json({"status": "Saved"})
 
         else:
             self.send_json({"error": "Not found"}, 404)
 
-# ===== Start Server =====
+
+# ================= START SERVER =================
 server = HTTPServer(("", PORT), MyHandler)
-print("✅ Secure Server Running on port", PORT)
+print("🚀 Secure Server Running on port", PORT)
 server.serve_forever()

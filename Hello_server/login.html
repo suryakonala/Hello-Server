@@ -56,9 +56,9 @@
     <a href="/register">Create new account</a>
 </div>
 
-<script>
+<!-- <script>
 function loginUser() {
-    fetch("/login", {
+    fetch("/login-api", {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
@@ -74,7 +74,58 @@ function loginUser() {
         document.getElementById("msg").innerText = data.status || data.error;
     });
 }
+</script> -->
+<script>
+function loginUser() {
+    fetch("/login-api", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            username: document.getElementById("username").value,
+            password: document.getElementById("password").value
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+        document.getElementById("msg").innerText = data.status || data.error;
+    });
+}
 </script>
+
 
 </body>
 </html>
+
+
+<!-- <!DOCTYPE html>
+<html>
+<head>
+<title>Login</title>
+<style>
+body{background:black;color:white;font-family:Arial;
+display:flex;justify-content:center;align-items:center;height:100vh}
+.box{border:2px solid white;padding:30px;border-radius:15px}
+input,button{width:100%;padding:10px;margin:10px 0}
+</style>
+</head>
+<body>
+<div class="box">
+<h2>Login</h2>
+<input id="u" placeholder="Username">
+<input id="p" type="password" placeholder="Password">
+<button onclick="login()">Login</button>
+<p id="msg"></p>
+</div>
+
+<script>
+async function login(){
+const r=await fetch("/login",{method:"POST",
+headers:{"Content-Type":"application/json"},
+body:JSON.stringify({username:u.value,password:p.value})});
+msg.innerText=JSON.stringify(await r.json());
+}
+</script>
+</body>
+</html> -->
