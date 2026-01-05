@@ -5,7 +5,7 @@ from pymongo import MongoClient
 
 PORT = int(os.environ.get("PORT", 8000))
 
-ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin123")
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "Surya123")
 MONGO_URL = os.environ.get("MONGO_URL")
 
 client = MongoClient(MONGO_URL)
